@@ -14,7 +14,7 @@
 #define LED_OFF  1
 #define LED_ON  0
 
-#define SW_PIN A0
+#define SWITCH_PIN A0
 
 // Variables will change:
 int buttonState;             // the current reading from the input pin
@@ -25,24 +25,33 @@ int lastButtonState = LOW;   // the previous reading from the input pin
 long lastDebounceTime = 0;  // the last time the output pin was toggled
 long debounceDelay = 50;    // the debounce time; increase if the output flickers
 
-String makingMethodsNames[]={"Grilled", "Sauteed", "Shallow-fried", "Deap-Fried"};
+String makingMethodsNames[]={"Grilled", "Sauteed", "Deap-Fried", "Fresh", 
+                             "Diced", "Chopped", "Roasted", "Fried"};
 int sizeOfmakingMethodsNames = sizeof(makingMethodsNames) / sizeof(makingMethodsNames[0]);
 int lastUsedMakingMethod = -1;
 
-String ingridients[]={"Scallops", "Orange", "Cinnamon"};
+String ingridients[]={"Scallops", "Orange", "Cinnamon", "Cheese", "Salmon", "Tomato", 
+                      "Chicken Wings", "Goat milk", "Liver", "Cucumber", "Garlic", "Corn", 
+                      "Sherry tomatos", "Green Tomatos", "Potato", "Potatos", "Egg plant"};
 int sizeOfingridients = sizeof(ingridients) / sizeof(ingridients[0]);
 int lastUsedIngridient = -1;
 
-String connectionWords[]={"with", "and", "on"};
+String connectionWords[]={"with", "and", "on", "coated with"};
 int sizeOfconnectionWords = sizeof(connectionWords) / sizeof(connectionWords[0]);
 int lastUsedConnectionWord = -1;
 
+String otherSentances[]={"Maybe just take a hike?", "Isn't today your Birthday?", "You should call 0524686127"};
+int sizeOfOtherSentances = sizeof(otherSentances) / sizeof(otherSentances[0]);
+int lastUsedOtherSentances = -1;
+
 LiquidCrystal_I2C  lcd(I2C_ADDR, En_pin, Rw_pin, Rs_pin, D4_pin, D5_pin, D6_pin, D7_pin);
+
 
 void setup() 
 {
-    pinMode(SW_PIN, INPUT);
-    digitalWrite(SW_PIN, HIGH);       // turn on pullup resistors
+    randomSeed(analogRead(A5));
+    pinMode(SWITCH_PIN, INPUT);
+    digitalWrite(SWITCH_PIN, HIGH);       // turn on pullup resistors
     Serial.begin(9600);
     lcd.begin(20, 4, LCD_8BITMODE);  // initialize the lcd
 
@@ -50,14 +59,13 @@ void setup()
     lcd.setBacklight(LED_ON);
     
     stringToLCD("Welcome Devora,     Would you like an   idea for food?");
-
 }
 
 void loop()  
 {
 
     // read the state of the switch into a local variable:
-    int reading = digitalRead(SW_PIN);
+    int reading = digitalRead(SWITCH_PIN);
 
     // check to see if you just pressed the button 
     // (i.e. the input went from LOW to HIGH),  and you've waited 
@@ -80,6 +88,7 @@ void loop()
 
             // only toggle the LED if the new button state is HIGH
             if (buttonState == LOW) {
+                introAnimation();
                 generateFoodName();
                 //delay(2000);
                 //lcd.setBacklight(LED_OFF);
@@ -94,54 +103,59 @@ void loop()
 
 void generateFoodName(){
     String recipe;
-
-    recipe += generateSubName();
-    recipe += " ";
-    if (random(2)){
-        int connectionWord = random(0, sizeOfconnectionWords - 1); 
-        recipe += connectionWords[connectionWord];
-        recipe += " ";
-        recipe += generateSubName();
+    if (random(100) == 99){ // 1% to give some sentance - not a food name
+        int sentanceIndex = getRandomValue(otherSentances, sizeOfOtherSentances, lastUsedOtherSentances);
+        recipe += otherSentances[sentanceIndex];
     }
-    
-
-    //String recipe = makingMethodsNames[methodIndex]  + String(" ") + ingridients[ingridient];
-    
+    else{
+        recipe += generateSubName();
+        recipe += " ";
+        if (random(2)){
+            int connectionWord = random(0, sizeOfconnectionWords); 
+            recipe += connectionWords[connectionWord];
+            recipe += " ";
+            recipe += generateSubName();
+        }
+    }
     stringToLCD(recipe);
 }
 
 String generateSubName(){
     String subRecipe;
-//    int methodIndex = random(0, sizeOfmakingMethodsNames - 1);
-    int methodIndex = getRandomValue(makingMethodsNames, sizeOfmakingMethodsNames, lastUsedMakingMethod);  //random(0, sizeOfmakingMethodsNames - 1);
+    int methodIndex = getRandomValue(makingMethodsNames, sizeOfmakingMethodsNames, lastUsedMakingMethod);
     lastUsedMakingMethod = methodIndex;
     subRecipe += makingMethodsNames[methodIndex];
     
     subRecipe += " ";
     
-    //int ingridient = random(0, sizeOfingridients - 1);
-    int ingridient = getRandomValue(ingridients, sizeOfingridients, lastUsedIngridient);  //random(0, sizeOfmakingMethodsNames - 1);
+    int ingridient = getRandomValue(ingridients, sizeOfingridients, lastUsedIngridient);
     lastUsedIngridient = ingridient;
     subRecipe += ingridients[ingridient];
+    
     return subRecipe;
 }
 
 int getRandomValue(String values[], int numOfValues, int lastValueIndex){
     int found = 0;
-    int index = 0;
-    //int stringArraySize = sizeof(values) / sizeof(values[0]);
-    //Serial.print("size: ");
-    //Serial.println(stringArraySize);                        
+    int index = 0;                
 
     while (!found){
-       index = random(0, numOfValues - 1);
+       index = random(0, numOfValues);
        if (index != lastValueIndex){
            found = 1;
-           Serial.print("index: ");
-           Serial.println(index);   
        }
     }
     return index;
+}
+
+void introAnimation(){
+    lcd.clear();
+    lcd.setCursor(0,0);
+    lcd.setBacklight(LED_ON);
+    for(int i=0; i< 20; i++){
+        lcd.print((char)255);
+        delay(110);
+    }
 }
 
 void stringToLCD(String data) {
