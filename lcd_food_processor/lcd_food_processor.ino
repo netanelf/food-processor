@@ -1,6 +1,8 @@
 #include <Wire.h>
 #include <LCD.h>
 #include <LiquidCrystal_I2C.h>  // F Malpartida's NewLiquidCrystal library
+#include <avr/sleep.h>
+#include <avr/power.h>
 
 #define I2C_ADDR    0x27  // Define I2C Address for controller
 #define En_pin 2
@@ -14,16 +16,21 @@
 #define LED_OFF  1
 #define LED_ON  0
 
-#define SWITCH_PIN A0
-
+#define SWITCH_PIN 2
+#define TIME_FOR_SPECIAL_MODE_MS 1000
+#define TIME_TO_ENTER_SLEEP_MODE_MS 20000
 // Variables will change:
-int buttonState;             // the current reading from the input pin
-int lastButtonState = LOW;   // the previous reading from the input pin
-
+int buttonState = HIGH;             // the current reading from the input pin
+int lastButtonState = HIGH;   // the previous reading from the input pin
+int buttonPushStarted = 0;
 // the following variables are long's because the time, measured in miliseconds,
 // will quickly become a bigger number than can be stored in an int.
 long lastDebounceTime = 0;  // the last time the output pin was toggled
 long debounceDelay = 50;    // the debounce time; increase if the output flickers
+long buttonOnStartTime;
+int wokeUpFromSleep = 0;
+
+
 
 String makingMethodsNames[]={"Grilled", "Sauteed", "Deap-Fried", "Fresh", 
                              "Diced", "Chopped", "Roasted", "Fried"};
@@ -32,7 +39,8 @@ int lastUsedMakingMethod = -1;
 
 String ingridients[]={"Scallops", "Orange", "Cinnamon", "Cheese", "Salmon", "Tomato", 
                       "Chicken Wings", "Goat milk", "Liver", "Cucumber", "Garlic", "Corn", 
-                      "Sherry tomatos", "Green Tomatos", "Potato", "Potatos", "Egg plant"};
+                      "Sherry tomatos", "Green Tomatos", "Potato", "Potatos", "Egg plant", 
+                      "Kale"};
 int sizeOfingridients = sizeof(ingridients) / sizeof(ingridients[0]);
 int lastUsedIngridient = -1;
 
@@ -46,25 +54,55 @@ int lastUsedOtherSentances = -1;
 
 LiquidCrystal_I2C  lcd(I2C_ADDR, En_pin, Rw_pin, Rs_pin, D4_pin, D5_pin, D6_pin, D7_pin);
 
+byte customChar[8] = {
+	0b00000,
+	0b00000,
+	0b00000,
+	0b00000,
+	0b00000,
+	0b00000,
+	0b00000,
+	0b00000
+};
 
 void setup() 
 {
     randomSeed(analogRead(A5));
-    pinMode(SWITCH_PIN, INPUT);
-    digitalWrite(SWITCH_PIN, HIGH);       // turn on pullup resistors
+    pinMode(SWITCH_PIN, INPUT_PULLUP);
+    
+    //attachInterrupt(digitalPinToInterrupt(interruptPin), isrButton, CHANGE);
+    
     Serial.begin(9600);
+    //lcd.createChar(0, customChar);
     lcd.begin(20, 4, LCD_8BITMODE);  // initialize the lcd
 
     lcd.setBacklightPin(BACKLIGHT_PIN, NEGATIVE);
-    lcd.setBacklight(LED_ON);
-    
-    stringToLCD("Welcome Devora,     Would you like an   idea for food?");
+    great();
+
 }
 
+
+void great(){
+    Serial.println("in Great");
+    lcd.clear();
+    lcd.setCursor(0,0);
+    lcd.setBacklight(LED_ON);
+    stringToLCD("Welcome Devora,     Would you like an   idea for food?");
+}
 void loop()  
 {
+    if (!wokeUpFromSleep){
+        setButtonState();
+    }
+    else{
+        delay(500);
+        wokeUpFromSleep = 0;
+        great();
+    }
 
-    // read the state of the switch into a local variable:
+}
+
+void setButtonState(void){
     int reading = digitalRead(SWITCH_PIN);
 
     // check to see if you just pressed the button 
@@ -76,29 +114,102 @@ void loop()
         // reset the debouncing timer
         lastDebounceTime = millis();
         //Serial.println(lastDebounceTime);
-    } 
+    }
+    
+    if ((millis() - lastDebounceTime) < TIME_TO_ENTER_SLEEP_MODE_MS ){
+        Serial.print(millis());
+        Serial.print(", reading: ");
+        Serial.println(reading);        
+
+        delay(50);
+    }
+    else{
+        enterSleep();
+        wokeUpFromSleep = 1;
+        Serial.println("waking up");
+        lastDebounceTime = millis();
+    }
 
     if ((millis() - lastDebounceTime) > debounceDelay) {
         // whatever the reading is at, it's been there for longer
         // than the debounce delay, so take it as the actual current state:
-
+        
         // if the button state has changed:
         if (reading != buttonState) {
             buttonState = reading;
-
-            // only toggle the LED if the new button state is HIGH
-            if (buttonState == LOW) {
-                introAnimation();
-                generateFoodName();
-                //delay(2000);
-                //lcd.setBacklight(LED_OFF);
+            
+            if (buttonState == LOW){
+                if (!buttonPushStarted){
+                    buttonOnStartTime = millis();
+                    buttonPushStarted = 1;
+                }
             }
+            
+            // only toggle the LED if the new button state is HIGH
+            if (buttonState == HIGH) {
+                
+                Serial.print("button catched");
+                Serial.println(millis() - buttonOnStartTime);
+                
+                if ((millis() - buttonOnStartTime) > TIME_FOR_SPECIAL_MODE_MS){
+                    specialMode();
+                }
+                else{
+                    introAnimation();
+                    generateFoodName();
+                    //delay(2000);
+                    //lcd.setBacklight(LED_OFF);
+                }
+                buttonPushStarted = 0;
+            }
+
         }
     }
 
     // save the reading.  Next time through the loop,
     // it'll be the lastButtonState:
     lastButtonState = reading;
+}
+
+void pin2Interrupt(void)
+{
+      /* This will bring us back from sleep. */
+      
+      /* We detach the interrupt to stop it from 
+       * continuously firing while the interrupt pin
+       * is low.
+       */
+      detachInterrupt(0);
+}
+
+void enterSleep(void)
+{
+      Serial.println("going to sleep");
+      
+      /* Setup pin2 as an interrupt and attach handler. */
+      attachInterrupt(0, pin2Interrupt, LOW);
+      delay(100);
+      
+      set_sleep_mode(SLEEP_MODE_PWR_DOWN);
+      
+      sleep_enable();
+      
+      sleep_mode();
+      
+      /* The program will continue from here. */
+      
+      /* First thing to do is disable sleep. */
+      sleep_disable(); 
+}
+
+void specialMode(){
+    lcd.clear();
+    lcd.setCursor(0,0);
+    lcd.setBacklight(LED_ON);
+    for(int i=0; i< 80; i++){
+        lcd.print(lcd.write(char(10)));
+        delay(10);
+    }
 }
 
 void generateFoodName(){
@@ -169,7 +280,7 @@ void stringToLCD(String data) {
    while(stillProcessing) {
         if (++lineCount > 20) {    // have we printed 20 characters yet (+1 for the logic)
              lineNumber += 1;
-             lcd.setCursor(0,lineNumber);   // move cursor down
+             lcd.setCursor(0, lineNumber);   // move cursor down
              lineCount = 1;
         }
 
