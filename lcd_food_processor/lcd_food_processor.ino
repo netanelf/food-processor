@@ -33,46 +33,40 @@ int wokeUpFromSleep = 0;
 
 
 String makingMethodsNames[]={"Grilled", "Sauteed", "Deap-Fried", "Fresh", 
-                             "Diced", "Chopped", "Roasted", "Fried"};
+                             "Diced", "Chopped", "Roasted", "Fried", "Frozen", "Grated"};
 int sizeOfmakingMethodsNames = sizeof(makingMethodsNames) / sizeof(makingMethodsNames[0]);
 int lastUsedMakingMethod = -1;
 
 String ingridients[]={"Scallops", "Orange", "Cinnamon", "Cheese", "Salmon", "Tomato", 
                       "Chicken Wings", "Goat milk", "Liver", "Cucumber", "Garlic", "Corn", 
                       "Sherry tomatos", "Green Tomatos", "Potato", "Potatos", "Egg plant", 
-                      "Kale"};
+                      "Kale", "Mango", "Water Melon", "Cashew", "PineApple",};
 int sizeOfingridients = sizeof(ingridients) / sizeof(ingridients[0]);
 int lastUsedIngridient = -1;
+
+String afterMethods[]={"Soup", "Salad", "Ice-Cream"};
+int sizeOfafterMethods = sizeof(afterMethods) / sizeof(afterMethods[0]);
+int lastUsedafterMethods = -1;
 
 String connectionWords[]={"with", "and", "on", "coated with"};
 int sizeOfconnectionWords = sizeof(connectionWords) / sizeof(connectionWords[0]);
 int lastUsedConnectionWord = -1;
 
-String otherSentances[]={"Maybe just take a hike?", "Isn't today your Birthday?", "You should call 0524686127"};
+String otherSentances[]={"Maybe just take a hike?", "Isn't today your Birthday?", "You should call 0524686127", "This is an awesome gadget"};
 int sizeOfOtherSentances = sizeof(otherSentances) / sizeof(otherSentances[0]);
 int lastUsedOtherSentances = -1;
 
 LiquidCrystal_I2C  lcd(I2C_ADDR, En_pin, Rw_pin, Rs_pin, D4_pin, D5_pin, D6_pin, D7_pin);
 
-byte customChar[8] = {
-	0b00000,
-	0b00000,
-	0b00000,
-	0b00000,
-	0b00000,
-	0b00000,
-	0b00000,
-	0b00000
-};
 
 void setup() 
 {
-    randomSeed(analogRead(A5));
+    randomSeed(analogRead(A1));
     pinMode(SWITCH_PIN, INPUT_PULLUP);
     
     //attachInterrupt(digitalPinToInterrupt(interruptPin), isrButton, CHANGE);
     
-    Serial.begin(9600);
+    //Serial.begin(9600);
     //lcd.createChar(0, customChar);
     lcd.begin(20, 4, LCD_8BITMODE);  // initialize the lcd
 
@@ -83,7 +77,7 @@ void setup()
 
 
 void great(){
-    Serial.println("in Great");
+    //Serial.println("in Great");
     lcd.clear();
     lcd.setCursor(0,0);
     lcd.setBacklight(LED_ON);
@@ -117,16 +111,16 @@ void setButtonState(void){
     }
     
     if ((millis() - lastDebounceTime) < TIME_TO_ENTER_SLEEP_MODE_MS ){
-        Serial.print(millis());
-        Serial.print(", reading: ");
-        Serial.println(reading);        
+        //Serial.print(millis());
+        //Serial.print(", reading: ");
+        //Serial.println(reading);        
 
         delay(50);
     }
     else{
         enterSleep();
         wokeUpFromSleep = 1;
-        Serial.println("waking up");
+        //Serial.println("waking up");
         lastDebounceTime = millis();
     }
 
@@ -148,8 +142,8 @@ void setButtonState(void){
             // only toggle the LED if the new button state is HIGH
             if (buttonState == HIGH) {
                 
-                Serial.print("button catched");
-                Serial.println(millis() - buttonOnStartTime);
+                //Serial.print("button catched");
+                //Serial.println(millis() - buttonOnStartTime);
                 
                 if ((millis() - buttonOnStartTime) > TIME_FOR_SPECIAL_MODE_MS){
                     specialMode();
@@ -184,8 +178,8 @@ void pin2Interrupt(void)
 
 void enterSleep(void)
 {
-      Serial.println("going to sleep");
-      
+      //Serial.println("going to sleep");
+      lcd.setBacklight(LED_OFF);
       /* Setup pin2 as an interrupt and attach handler. */
       attachInterrupt(0, pin2Interrupt, LOW);
       delay(100);
@@ -200,32 +194,42 @@ void enterSleep(void)
       
       /* First thing to do is disable sleep. */
       sleep_disable(); 
+      lcd.setBacklight(LED_ON);    
 }
 
 void specialMode(){
     lcd.clear();
     lcd.setCursor(0,0);
     lcd.setBacklight(LED_ON);
-    for(int i=0; i< 80; i++){
-        lcd.print(lcd.write(char(10)));
-        delay(10);
-    }
+    stringToLCD("Happy Birthday 35!!!The best time to    start having fun.                Netanel");
+    
 }
 
 void generateFoodName(){
     String recipe;
-    if (random(100) == 99){ // 1% to give some sentance - not a food name
+    if (random(100) >= 95){ // 5% to give some sentance - not a food name
         int sentanceIndex = getRandomValue(otherSentances, sizeOfOtherSentances, lastUsedOtherSentances);
         recipe += otherSentances[sentanceIndex];
+    }
+    else if (random(10) == 1){// soup, salad (ingridients + method)
+        int ingridientIndex = getRandomValue(ingridients, sizeOfingridients, lastUsedIngridient);
+        recipe += ingridients[ingridientIndex];
+        lastUsedIngridient = ingridientIndex;
+        
+        recipe += " ";
+        
+        recipe += afterMethods[getRandomValue(afterMethods, sizeOfafterMethods, lastUsedafterMethods)]; 
     }
     else{
         recipe += generateSubName();
         recipe += " ";
-        if (random(2)){
+        if (random(2)){ // 
             int connectionWord = random(0, sizeOfconnectionWords); 
             recipe += connectionWords[connectionWord];
             recipe += " ";
             recipe += generateSubName();
+        }else if (random(4) == 1){
+            recipe += "Soup"; 
         }
     }
     stringToLCD(recipe);
